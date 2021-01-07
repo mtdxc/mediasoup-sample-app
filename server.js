@@ -4,6 +4,8 @@ const https = require('https');
 const express = require('express');
 const socketIO = require('socket.io');
 const config = require('./config');
+const interactiveServer = require('./lib/interactiveServer');
+const interactiveClient = require('./lib/interactiveClient');
 
 // Global variables
 let worker;
@@ -18,6 +20,13 @@ let mediasoupRouter;
 
 (async () => {
   try {
+    // Open the interactive server.
+    await interactiveServer();
+
+    // Open the interactive client.
+    if (process.env.INTERACTIVE === 'true' || process.env.INTERACTIVE === '1')
+		  await interactiveClient();
+
     await runExpressApp();
     await runWebServer();
     await runSocketServer();
@@ -180,6 +189,7 @@ async function createWebRtcTransport() {
     enableUdp: true,
     enableTcp: true,
     preferUdp: true,
+    sharePort: true,
     initialAvailableOutgoingBitrate,
   });
   if (maxIncomingBitrate) {
