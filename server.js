@@ -18,6 +18,10 @@ let producerTransport;
 let consumerTransport;
 let mediasoupRouter;
 
+function dumpObj(msg, obj){
+  console.log(msg, obj);//JSON.stringify(obj, "", 4));
+}
+
 (async () => {
   try {
     // Open the interactive server.
@@ -27,16 +31,16 @@ let mediasoupRouter;
     if (process.env.INTERACTIVE === 'true' || process.env.INTERACTIVE === '1')
 		  await interactiveClient();
 
-    await runExpressApp();
+    runExpressApp();
     await runWebServer();
-    await runSocketServer();
+    runSocketServer();
     await runMediasoupWorker();
   } catch (err) {
     console.error(err);
   }
 })();
 
-async function runExpressApp() {
+function runExpressApp() {
   expressApp = express();
   expressApp.use(express.json());
   expressApp.use(express.static(__dirname));
@@ -44,9 +48,7 @@ async function runExpressApp() {
   expressApp.use((error, req, res, next) => {
     if (error) {
       console.warn('Express app error,', error.message);
-
       error.status = error.status || (error.name === 'TypeError' ? 400 : 500);
-
       res.statusMessage = error.message;
       res.status(error.status).send(String(error));
     } else {
@@ -82,7 +84,7 @@ async function runWebServer() {
   });
 }
 
-async function runSocketServer() {
+function runSocketServer() {
   socketServer = socketIO(webServer, {
     serveClient: false,
     path: '/server',
@@ -113,6 +115,7 @@ async function runSocketServer() {
       try {
         const { transport, params } = await createWebRtcTransport();
         producerTransport = transport;
+        dumpObj("createProducerTransport return ", params);
         callback(params);
       } catch (err) {
         console.error(err);
@@ -124,6 +127,7 @@ async function runSocketServer() {
       try {
         const { transport, params } = await createWebRtcTransport();
         consumerTransport = transport;
+        dumpObj("createConsumerTransport return ", params);
         callback(params);
       } catch (err) {
         console.error(err);
@@ -132,11 +136,13 @@ async function runSocketServer() {
     });
 
     socket.on('connectProducerTransport', async (data, callback) => {
+      dumpObj("connectProducerTransport with ", data);
       await producerTransport.connect({ dtlsParameters: data.dtlsParameters });
       callback();
     });
 
     socket.on('connectConsumerTransport', async (data, callback) => {
+      dumpObj("connectConsumerTransport with ", data);
       await consumerTransport.connect({ dtlsParameters: data.dtlsParameters });
       callback();
     });
@@ -144,6 +150,7 @@ async function runSocketServer() {
     socket.on('produce', async (data, callback) => {
       const {kind, rtpParameters} = data;
       producer = await producerTransport.produce({ kind, rtpParameters });
+      dumpObj('produce with', data, " return ", producer.id);
       callback({ id: producer.id });
 
       // inform clients about new producer
@@ -151,10 +158,14 @@ async function runSocketServer() {
     });
 
     socket.on('consume', async (data, callback) => {
-      callback(await createConsumer(producer, data.rtpCapabilities));
+      dumpObj('consume with ', data);
+      ret = await createConsumer(producer, data.rtpCapabilities);
+      dumpObj('consume return', ret);
+      callback(ret);
     });
 
     socket.on('resume', async (data, callback) => {
+      dumpObj('resume', data);
       await consumer.resume();
       callback();
     });
@@ -175,7 +186,9 @@ async function runMediasoupWorker() {
   });
 
   const mediaCodecs = config.mediasoup.router.mediaCodecs;
+  dumpObj("createRouter use mediaCodecs", mediaCodecs);
   mediasoupRouter = await worker.createRouter({ mediaCodecs });
+  dumpObj("createRouter return rtpCapabilities", mediasoupRouter.rtpCapabilities);
 }
 
 async function createWebRtcTransport() {
