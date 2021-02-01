@@ -17,9 +17,11 @@ let consumer;
 let producerTransport;
 let consumerTransport;
 let mediasoupRouter;
+let producerRouter;
+let consumerRouter;
 
 function dumpObj(msg, obj){
-  console.log(msg, obj);//JSON.stringify(obj, "", 4));
+  console.log(msg, JSON.stringify(obj, "", 2));
 }
 
 (async () => {
@@ -113,7 +115,7 @@ function runSocketServer() {
 
     socket.on('createProducerTransport', async (data, callback) => {
       try {
-        const { transport, params } = await createWebRtcTransport();
+        const { transport, params } = await createWebRtcTransport(producerRouter);
         producerTransport = transport;
         dumpObj("createProducerTransport return ", params);
         callback(params);
@@ -125,7 +127,7 @@ function runSocketServer() {
 
     socket.on('createConsumerTransport', async (data, callback) => {
       try {
-        const { transport, params } = await createWebRtcTransport();
+        const { transport, params } = await createWebRtcTransport(consumerRouter);
         consumerTransport = transport;
         dumpObj("createConsumerTransport return ", params);
         callback(params);
@@ -150,9 +152,14 @@ function runSocketServer() {
     socket.on('produce', async (data, callback) => {
       const {kind, rtpParameters} = data;
       producer = await producerTransport.produce({ kind, rtpParameters });
-      dumpObj('produce with', data, " return ", producer.id);
+      await producerRouter.pipeToRouter({
+        producerId : producer.id,
+        router     : consumerRouter
+      });
+      
+      dumpObj('produce with', data);
+      dumpObj("return " + producer.id + " consumableRtpParameters=", producer.consumableRtpParameters);
       callback({ id: producer.id });
-
       // inform clients about new producer
       socket.broadcast.emit('newProducer');
     });
@@ -184,20 +191,22 @@ async function runMediasoupWorker() {
     console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
     setTimeout(() => process.exit(1), 2000);
   });
-
+  worker.sharePort({stun_server: {ip:"120.26.218.183", port:3478}, listenIp: config.mediasoup.webRtcTransport.listenIps[0]});
   const mediaCodecs = config.mediasoup.router.mediaCodecs;
   dumpObj("createRouter use mediaCodecs", mediaCodecs);
   mediasoupRouter = await worker.createRouter({ mediaCodecs });
+  producerRouter = await worker.createRouter({ mediaCodecs });
+  consumerRouter = await worker.createRouter({ mediaCodecs });
   dumpObj("createRouter return rtpCapabilities", mediasoupRouter.rtpCapabilities);
 }
 
-async function createWebRtcTransport() {
+async function createWebRtcTransport(route) {
   const {
     maxIncomingBitrate,
     initialAvailableOutgoingBitrate
   } = config.mediasoup.webRtcTransport;
 
-  const transport = await mediasoupRouter.createWebRtcTransport({
+  const transport = await route.createWebRtcTransport({
     listenIps: config.mediasoup.webRtcTransport.listenIps,
     enableUdp: true,
     enableTcp: true,
@@ -223,7 +232,7 @@ async function createWebRtcTransport() {
 }
 
 async function createConsumer(producer, rtpCapabilities) {
-  if (!mediasoupRouter.canConsume(
+  if (!producerRouter.canConsume(
     {
       producerId: producer.id,
       rtpCapabilities,
@@ -246,6 +255,13 @@ async function createConsumer(producer, rtpCapabilities) {
   if (consumer.type === 'simulcast') {
     await consumer.setPreferredLayers({ spatialLayer: 2, temporalLayer: 2 });
   }
+  setTimeout(function(){
+    producer.pause();
+  }, 30000);
+  setTimeout(function(){
+    producer.close();
+    delete producer;
+  }, 60000);
 
   return {
     producerId: producer.id,
