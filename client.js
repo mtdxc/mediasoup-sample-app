@@ -201,24 +201,35 @@ async function subscribe() {
       .catch(errback);
   });
 
+  function unsubscrbe(){
+    socket.request('unsubscribe');
+    transport.close();
+    $txtSubscription.innerHTML = 'unsubscribed';
+    document.querySelector('#remote_video').srcObject = null;
+    $btnSubscribe.removeEventListener('click', unsubscrbe);
+    $btnSubscribe.addEventListener('click', subscribe);
+  }
+
   transport.on('connectionstatechange', async (state) => {
     switch (state) {
       case 'connecting':
         $txtSubscription.innerHTML = 'subscribing...';
-        $fsSubscribe.disabled = true;
+        // $fsSubscribe.disabled = true;
         break;
 
       case 'connected':
         document.querySelector('#remote_video').srcObject = await stream;
         await socket.request('resume');
         $txtSubscription.innerHTML = 'subscribed';
-        $fsSubscribe.disabled = true;
+        $btnSubscribe.removeEventListener('click', subscribe);
+        $btnSubscribe.addEventListener('click', unsubscrbe);
+        // $fsSubscribe.disabled = true;
         break;
 
       case 'failed':
         transport.close();
         $txtSubscription.innerHTML = 'failed';
-        $fsSubscribe.disabled = false;
+        // $fsSubscribe.disabled = false;
         break;
 
       default: break;
