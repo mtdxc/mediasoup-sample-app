@@ -98,7 +98,7 @@ function runSocketServer() {
     let consumerTransport;    
     // inform the client about existence of producer
     if (producer) {
-      socket.emit('newProducer');
+      socket.emit('newProducer', producer.id);
     }
 
     function closeConsumer(){
@@ -175,11 +175,12 @@ function runSocketServer() {
       dumpObj("return " + producer.id + " consumableRtpParameters=", producer.consumableRtpParameters);
       callback({ id: producer.id });
       // inform clients about new producer
-      socket.broadcast.emit('newProducer');
+      socket.broadcast.emit('newProducer', producer.id);
     });
 
-    async function createConsumer(producer, rtpCapabilities) {
+    async function createConsumer(producerId, rtpCapabilities) {
       let router = producerRouter||mediasoupRouter;
+      /* 
       if (!router.canConsume(
         {
           producerId: producer.id,
@@ -189,9 +190,11 @@ function runSocketServer() {
         console.error('can not consume');
         return;
       }
+      */
       try {
+        let producer = await router.loadProducer(producerId);
         consumer = await consumerTransport.consume({
-          producerId: producer.id,
+          producerId,
           rtpCapabilities,
           paused: producer.kind === 'video',
         });
@@ -201,19 +204,10 @@ function runSocketServer() {
       }
     
       if (consumer.type === 'simulcast') {
-        // await consumer.setPreferredLayers({ spatialLayer: 2, temporalLayer: 2 });
+        await consumer.setPreferredLayers({ spatialLayer: 2, temporalLayer: 2 });
       }
-      /*
-      setTimeout(function(){
-        producer.pause();
-      }, 30000);
-      setTimeout(function(){
-        producer.close();
-        delete producer;
-      }, 60000);
-      */
       return {
-        producerId: producer.id,
+        producerId,
         id: consumer.id,
         kind: consumer.kind,
         rtpParameters: consumer.rtpParameters,
@@ -224,7 +218,7 @@ function runSocketServer() {
 
     socket.on('consume', async (data, callback) => {
       dumpObj('consume with ', data);
-      ret = await createConsumer(producer, data.rtpCapabilities);
+      ret = await createConsumer(data.producerId, data.rtpCapabilities);
       dumpObj('consume return', ret);
       callback(ret);
     });

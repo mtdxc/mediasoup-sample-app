@@ -21,6 +21,8 @@ const $txtConnection = $('#connection_status');
 const $txtWebcam = $('#webcam_status');
 const $txtScreen = $('#screen_status');
 const $txtSubscription = $('#sub_status');
+const $edProducerId = $('#ed_producer_id');
+
 let $txtPublish;
 
 $btnConnect.addEventListener('click', connect);
@@ -68,8 +70,9 @@ async function connect() {
     $btnConnect.disabled = false;
   });
 
-  socket.on('newProducer', () => {
+  socket.on('newProducer', (id) => {
     $fsSubscribe.disabled = false;
+    $edProducerId.value = id;
   });
 }
 
@@ -111,6 +114,7 @@ async function publish(e) {
         kind,
         rtpParameters,
       });
+      $edProducerId.value = id;
       callback({ id });
     } catch (err) {
       errback(err);
@@ -241,7 +245,7 @@ async function subscribe() {
 
 async function consume(transport) {
   const { rtpCapabilities } = device;
-  const data = await socket.request('consume', { rtpCapabilities });
+  const data = await socket.request('consume', { rtpCapabilities, producerId:$edProducerId.value });
   const {
     producerId,
     id,
