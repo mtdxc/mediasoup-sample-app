@@ -283,7 +283,7 @@ async function createWebRtcTransport(route) {
   });
   if (maxIncomingBitrate) {
     try {
-      // await transport.setMaxIncomingBitrate(maxIncomingBitrate);
+      await transport.setMaxIncomingBitrate(maxIncomingBitrate);
     } catch (error) {
     }
   }
