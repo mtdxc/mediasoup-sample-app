@@ -29,7 +29,7 @@ function dumpObj(msg, obj){
 
     // Open the interactive client.
     if (process.env.INTERACTIVE === 'true' || process.env.INTERACTIVE === '1')
-		  await interactiveClient();
+      await interactiveClient();
 
     runExpressApp();
     await runWebServer();
@@ -239,10 +239,14 @@ function runSocketServer() {
 async function runMediasoupRoom() {
   const mediaCodecs = config.mediasoup.router.mediaCodecs;
   dumpObj("createRoom use mediaCodecs", mediaCodecs);
-  mediasoupRouter = await mediasoup.createRoom({ mediaCodecs, 
-    opt : config.mediasoup.redis,
+  await mediasoup.initRoom({ mediaCodecs, 
+    // io : socketServer,
+    redis : config.mediasoup.redis,
     port: config.mediasoup.worker.rtcMinPort,
+    webrtc: config.mediasoup.webRtcTransport,
+    zone: 'jiuqu'
    });
+   mediasoupRouter = await mediasoup.createRoom("9797");
    dumpObj("createRoom return rtpCapabilities", mediasoupRouter.rtpCapabilities);
 }
 
